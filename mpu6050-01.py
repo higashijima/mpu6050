@@ -6,9 +6,12 @@ import smbus            # use I2C
 import math             # mathmatics
 from time import sleep  # time module
 import RPi.GPIO as GPIO
+import serial
+import datetime
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(4, GPIO.OUT)
+GPIO.setup(17, GPIO.OUT)
 
 #
 # define
@@ -25,6 +28,14 @@ GYRO_YOUT = 0x45
 GYRO_ZOUT = 0x47
 PWR_MGMT_1 = 0x6b       # PWR_MGMT_1
 PWR_MGMT_2 = 0x6c       # PWR_MGMT_2
+
+# USB connect settings
+COM_NAME = '/dev/ttyGS0'
+B_RATE = 115200
+SERIAL_TIMEOUT = 5
+
+ser = serial.Serial(COM_NAME, B_RATE)
+ser.timeout = SERIAL_TIMEOUT
 
 bus = smbus.SMBus(1)
                         # Sleep disabled
@@ -122,7 +133,7 @@ def calc_slope_for_accel_2axis_deg(x, y, z): # degree
     #
     # θ = atan(X軸出力加速度[g]/Y軸出力加速度[g])
     #
-    slope_xy = math.atan( x / y )
+    slope_xy = math.atan( x / y ) if y!=0 else 0
     deg_xy = math.degrees( slope_xy )
     if x > 0 and y > 0:    # 第1象限(0°〜+90°).
         deg_xy = deg_xy
@@ -142,11 +153,11 @@ def calc_slope_for_accel_2axis_deg(x, y, z): # degree
 # Φ = 重力ベクトルとz軸との角度
 def calc_slope_for_accel_3axis_deg(x, y, z): # degree
     # θ（シータ）
-    theta = math.atan( x / math.sqrt( y*y + z*z ) )
+    theta = math.atan(x/math.sqrt(y*y+z*z)) if y!=0 and z!=0 else 0
     # Ψ（プサイ）
-    psi = math.atan( y / math.sqrt( x*x + z*z ) )
+    psi = math.atan(y/math.sqrt(x*x+z*z)) if x!=0 and z!=0 else 0
     # Φ（ファイ）
-    phi = math.atan( math.sqrt( x*x + y*y ) / z )
+    phi = math.atan(math.sqrt(x*x+y*y)/z) if x!=0 and y!=0 else 0
 
     deg_theta = math.degrees( theta )
     deg_psi   = math.degrees( psi )
@@ -175,6 +186,41 @@ def disp_values():
 
     sleep(0.1)
 
+def getNow():
+    offset = datetime.timedelta(hours=+9)
+    jst = datetime.timezone(offset)
+
+    now = datetime.datetime.now(tz=jst)
+    return '{:%H:%M:%S}.{:06.0f}'.format(now, now.microsecond)
+
+def send_values():
+    # slope from accel
+    accel_x1,accel_y1,accel_z1 = get_accel_data_g()
+    slope_x1,slope_y1,slope_z1 = calc_slope_for_accel_1axis(accel_x1,accel_y1,accel_z1)
+    slope_x1 = math.degrees( slope_x1 )
+    slope_y1 = math.degrees( slope_y1 )
+    slope_z1 = math.degrees( slope_z1 )
+    print('[{:s}] x: {:06.3f}'.format(getNow(), slope_x1))
+    ser.write(b'x: %06.3f\n' % slope_x1)
+    print('[{:s}] y: {:06.3f}'.format(getNow(), slope_y1))
+    ser.write(b'y: %06.3f\n' % slope_y1)
+    print('[{:s}] z: :{06.3f}'.format(getNow(), slope_z1))
+    ser.write(b'z: %06.3f\n' % slope_z1)
+    accel_x2,accel_y2,accel_z2 = get_accel_data_g()
+    slope_xy = calc_slope_for_accel_2axis_deg(accel_x2,accel_y2,accel_z2)
+    print('[{:s}] xy: {:06.3f}'.format(getNow(), slope_xy))
+    ser.write(b'xy: %06.3f\n' % slope_xy)
+    accel_x3,accel_y3,accel_z3 = get_accel_data_g()
+    theta,psi,phi = calc_slope_for_accel_3axis_deg(accel_x3,accel_y3,accel_z3)
+    print('[{:s}] theta={:06.3f}'.format(getNow(), theta))
+    ser.write(b'theta=%06.3f\n' %theta)
+    print('psi=%06.3f'.format(getNow(), psi))
+    ser.write(b'psi=%06.3f\n' % psi)
+    print('[{:s}] phi={:06.3f}'.format(getNow(), phi))
+    ser.write(b'phi=%06.3f\n' % phi)
+
+    sleep(0.1)
+
 #
 # Main function
 #
@@ -182,14 +228,19 @@ def disp_values():
 try:
     while True:
         GPIO.output(4, GPIO.LOW)
+        GPIO.output(17, GPIO.LOW)
         print("====== ch 0.======")
-        disp_values()
+#        disp_values()
+        send_values()
         GPIO.output(4, GPIO.HIGH)
+        GPIO.output(17, GPIO.LOW)
         print("")
         print("====== ch 1 ====== ")
-        disp_values()
+#        disp_values()
+        send_values()
 
 except KeyboardInterrupt:
     GPIO.output(4, GPIO.LOW)
+    GPIO.output(17, GPIO.LOW)
     GPIO.cleanup()
     print("Keyboard intterrupted")
