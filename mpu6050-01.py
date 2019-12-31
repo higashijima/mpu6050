@@ -193,6 +193,10 @@ def getNow():
     now = datetime.datetime.now(tz=jst)
     return '{:%H:%M:%S}.{:06.0f}'.format(now, now.microsecond)
 
+def send_and_disp(msg):
+    print('[{:}] {:}'.format(getNow(), msg))
+    ser.write('{:}\n'.format(msg).encode('utf-8'))
+
 def send_values():
     # slope from accel
     accel_x1,accel_y1,accel_z1 = get_accel_data_g()
@@ -200,26 +204,19 @@ def send_values():
     slope_x1 = math.degrees( slope_x1 )
     slope_y1 = math.degrees( slope_y1 )
     slope_z1 = math.degrees( slope_z1 )
-    print('[{:s}] x: {:06.3f}'.format(getNow(), slope_x1))
-    ser.write(b'x: %06.3f\n' % slope_x1)
-    print('[{:s}] y: {:06.3f}'.format(getNow(), slope_y1))
-    ser.write(b'y: %06.3f\n' % slope_y1)
-    print('[{:s}] z: :{06.3f}'.format(getNow(), slope_z1))
-    ser.write(b'z: %06.3f\n' % slope_z1)
+    send_and_disp('x: {:06.3f}'.format(slope_x1))
+    send_and_disp('y: {:06.3f}'.format(slope_y1))
+    send_and_disp('z: {:06.3f}'.format(slope_z1))
     accel_x2,accel_y2,accel_z2 = get_accel_data_g()
     slope_xy = calc_slope_for_accel_2axis_deg(accel_x2,accel_y2,accel_z2)
-    print('[{:s}] xy: {:06.3f}'.format(getNow(), slope_xy))
-    ser.write(b'xy: %06.3f\n' % slope_xy)
+    send_and_disp('xy: {:06.3f}'.format(slope_xy))
     accel_x3,accel_y3,accel_z3 = get_accel_data_g()
     theta,psi,phi = calc_slope_for_accel_3axis_deg(accel_x3,accel_y3,accel_z3)
-    print('[{:s}] theta={:06.3f}'.format(getNow(), theta))
-    ser.write(b'theta=%06.3f\n' %theta)
-    print('psi=%06.3f'.format(getNow(), psi))
-    ser.write(b'psi=%06.3f\n' % psi)
-    print('[{:s}] phi={:06.3f}'.format(getNow(), phi))
-    ser.write(b'phi=%06.3f\n' % phi)
+    send_and_disp('theta={:06.3f}'.format(theta))
+    send_and_disp('psi={:06.3f}'.format(psi))
+    send_and_disp('phi={:06.3f}'.format(phi))
 
-    sleep(0.1)
+    sleep(0.01)
 
 #
 # Main function
@@ -229,13 +226,13 @@ try:
     while True:
         GPIO.output(4, GPIO.LOW)
         GPIO.output(17, GPIO.LOW)
-        print("====== ch 0.======")
+        send_and_disp("====== ch 0.======")
 #        disp_values()
         send_values()
         GPIO.output(4, GPIO.HIGH)
         GPIO.output(17, GPIO.LOW)
         print("")
-        print("====== ch 1 ====== ")
+        send_and_disp("====== ch 1 ====== ")
 #        disp_values()
         send_values()
 
