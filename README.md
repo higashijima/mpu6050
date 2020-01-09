@@ -8,3 +8,4 @@ apt update && \
 apt-get install python3-pip python3-dev python3-smbus rpi.gpio -y && \
  pip3 install pyserial
 ```
+USBへの書き込み権限が無いと言われたときはsudo で実行
